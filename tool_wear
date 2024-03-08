@@ -1,0 +1,63 @@
+import numpy as np
+
+def determine_tool_wear(image):
+    rows, cols = image.shape
+    processing_area = np.zeros((rows, cols))
+    weight_vectors = np.zeros((rows, cols))
+
+    # Determining the tool wear search area within the image
+    for row in range(50, rows):
+        for col in range(cols):
+            # Setting brightness threshold level, h
+            threshold = calculate_threshold(image[:, col])
+
+            # Evaluate comparative phi function for each pixel in a row
+            phi_values = evaluate_phi(image[row, :], threshold)
+
+            # Evaluate Eq. (2)
+            eq2_result = evaluate_eq2(phi_values)
+
+            if eq2_result == "tool_wear_detected":
+                # Weight updating for detected tool wear
+                weight_update(image[:, col], weight_vectors[:, col], h=0.1)
+            else:
+                # Weight updating for no tool wear
+                weight_update(image[:, col], weight_vectors[:, col], h=0.1)
+                # Weight updating for adjacent columns
+                weight_update(image[:, col-2:col+3], weight_vectors[:, col-2:col+3], h=0.1)
+
+    # Assign each pixel to "normal" or "active" category using the voting procedure
+    for row in range(2, rows-2):
+        for col in range(2, cols-2):
+            neighborhood = image[row-2:row+3, col-2:col+3]
+            category = voting_procedure(neighborhood)
+            processing_area[row, col] = category
+
+    return processing_area
+
+def calculate_threshold(column):
+    # Set brightness threshold level h for each pixel column
+    threshold = np.mean(column)
+    return threshold
+
+def evaluate_phi(row, threshold):
+    # Evaluate comparative phi function for each pixel in a row
+    phi_values = np.where(row > threshold, 1, 0)
+    return phi_values
+
+def evaluate_eq2(phi_values):
+    # Evaluate Eq. (2)
+    if np.sum(phi_values) > 0:
+        return "tool_wear_detected"
+    else:
+        return "no_tool_wear_detected"
+
+def weight_update(column, weight_vector, h):
+    # Weight updating using Eqs. (6) and (7)
+    weight_vector += h * (column - weight_vector)
+
+def voting_procedure(neighborhood):
+    # Assign pixel to "normal" or "active" category using voting procedure
+    unique, counts = np.unique(neighborhood, return_counts=True)
+    majority_category = unique[np.argmax(counts)]
+    return majority_category
